@@ -1,0 +1,129 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ServiceFlow | Staff Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .status-pill { display: inline-flex; align-items: center; justify-content: center; }
+    .metric-card strong { display: block; }
+  </style>
+  <script src="main.js" defer></script>
+  <script src="config.js" defer></script>
+  <script src="API/Auth.js" defer></script>
+  <script src="utils/authguard.js" defer></script>
+  <script src="shared/portal-state.js" defer></script>
+  <script src="shared/dashboard-sync.js" defer></script>
+</head>
+<body class="page page-dashboard">
+  <div class="dashboard-shell">
+    <header class="page-header dashboard-header">
+      <div class="page-brand">
+        <div class="brand-mark">SF</div>
+        <div>
+          <p class="eyebrow">Staff Dashboard</p>
+          <h1>Manage your department activity</h1>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="theme-toggle" type="button" aria-label="Toggle theme">Bright / Dark</button>
+        <a class="button secondary" href="index.html">Home</a>
+      </div>
+    </header>
+
+    <main class="grid gap-8 lg:grid-cols-[1.4fr_0.9fr]">
+      <section class="space-y-8">
+        <div class="rounded-3xl border border-slate-800/70 bg-slate-950/80 p-6 shadow-xl flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-2xl font-semibold text-white">Active staff & tasks</h2>
+            <p class="mt-2 text-sm text-slate-400">Respond to complaints, keep availability updated, and collaborate with ICT when needed.</p>
+          </div>
+          <div class="status-pill rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">Team active</div>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-3">
+          <div class="rounded-3xl border border-slate-800/70 bg-slate-950/80 p-6 shadow-xl">
+            <span class="text-sm text-slate-400">Online staff</span>
+            <strong id="staff-online-count" class="mt-3 block text-3xl font-semibold text-white">0</strong>
+          </div>
+          <div class="rounded-3xl border border-slate-800/70 bg-slate-950/80 p-6 shadow-xl">
+            <span class="text-sm text-slate-400">Pending replies</span>
+            <strong id="staff-pending-count" class="mt-3 block text-3xl font-semibold text-white">0</strong>
+          </div>
+          <div class="rounded-3xl border border-slate-800/70 bg-slate-950/80 p-6 shadow-xl">
+            <span class="text-sm text-slate-400">Open complaints</span>
+            <strong id="staff-open-count" class="mt-3 block text-3xl font-semibold text-white">0</strong>
+          </div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-800/70 bg-slate-950/80 p-6 shadow-xl">
+          <h3 class="text-xl font-semibold text-white">Assigned complaints</h3>
+          <div id="staff-complaint-list" class="mt-6 grid gap-4"></div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-800/70 bg-slate-950/80 p-6 shadow-xl">
+          <h3 class="text-xl font-semibold text-white">Current assignments</h3>
+          <div class="mt-6 grid gap-4">
+            <article class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-5">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <strong class="text-white">Finance follow-up</strong>
+                  <p class="mt-2 text-sm text-slate-400">Check billing concern for Local Government department.</p>
+                </div>
+                <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Online</span>
+              </div>
+            </article>
+            <article class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-5">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <strong class="text-white">Procurement update</strong>
+                  <p class="mt-2 text-sm text-slate-400">Confirm request status and notify the customer.</p>
+                </div>
+                <span class="rounded-full bg-slate-700/80 px-3 py-1 text-xs font-semibold text-slate-300">Offline</span>
+              </div>
+            </article>
+            <article class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-5">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <strong class="text-white">ICT handover</strong>
+                  <p class="mt-2 text-sm text-slate-400">Review active system issue and escalate to admin if needed.</p>
+                </div>
+                <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Online</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <aside class="space-y-6">
+        <section class="rounded-3xl border border-slate-800/70 bg-slate-950/80 p-6 shadow-xl">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 class="text-xl font-semibold text-white">Staff roster</h3>
+            <span class="text-sm text-slate-400">Online team members are ready to handle new complaints.</span>
+          </div>
+          <div id="staff-list" class="grid gap-4"></div>
+        </section>
+
+        <section class="rounded-3xl border border-slate-800/70 bg-slate-950/80 p-6 shadow-xl">
+          <div class="mb-4">
+            <h3 class="text-xl font-semibold text-white">Announcements</h3>
+          </div>
+          <div id="staff-announcements" class="grid gap-4"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+ <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.DashboardSync) {
+      window.DashboardSync.initStaffDashboard();
+    }
+  });
+ </script>
+
+<div id="staff-toast" class="staff-toast hidden"></div>
+  </body>
+</html>

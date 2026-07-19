@@ -1,0 +1,138 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ServiceFlow | Customer Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .staff-card.clickable { cursor: pointer; }
+    .staff-card.clickable:hover { transform: translateY(-3px); border-color: rgba(56,189,248,0.4); }
+    .staff-card.selected { box-shadow: 0 0 0 2px rgba(56,189,248,0.35); }
+    .button { transition: transform 0.2s ease, background 0.2s ease; }
+    .button:hover { transform: translateY(-1px); }
+  </style>
+  <script src="main.js" defer></script>
+  <script src="config.js" defer></script>
+  <script src="API/Auth.js" defer></script>
+  <script src="utils/authguard.js" defer></script>
+  <script src="shared/portal-state.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="mx-auto max-w-[1240px] px-6 py-8">
+    <header class="mb-8 flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+      <div class="space-y-3">
+        <p class="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Customer Dashboard</p>
+        <h1 class="text-4xl font-semibold text-white">Welcome back, valued customer.</h1>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <button class="rounded-full border border-slate-700 bg-slate-900/80 px-5 py-3 text-sm text-slate-100 transition hover:bg-slate-800" type="button" aria-label="Toggle theme">Bright / Dark</button>
+        <a class="rounded-full bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500" href="index.html">Home</a>
+      </div>
+    </header>
+
+    <main class="grid gap-8 xl:grid-cols-[1fr_1.1fr_0.95fr]">
+      <aside class="space-y-6">
+        <section class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
+          <h3 class="text-xl font-semibold text-white">Quick overview</h3>
+          <div class="mt-6 grid gap-4 sm:grid-cols-2">
+            <div class="rounded-3xl bg-slate-950/90 p-5">
+              <strong id="summary-departments-count" class="block text-3xl font-semibold text-white">16</strong>
+              <span class="text-sm text-slate-400">Departments</span>
+            </div>
+            <div class="rounded-3xl bg-slate-950/90 p-5">
+              <strong id="summary-open-count" class="block text-3xl font-semibold text-white">0</strong>
+              <span class="text-sm text-slate-400">Open requests</span>
+            </div>
+            <div class="rounded-3xl bg-slate-950/90 p-5">
+              <strong id="summary-pending-count" class="block text-3xl font-semibold text-white">0</strong>
+              <span class="text-sm text-slate-400">Pending replies</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
+          <h2 class="text-xl font-semibold text-white">Departments</h2>
+          <div id="departments-list" class="mt-6 grid gap-4"></div>
+        </section>
+      </aside>
+
+      <section class="space-y-6">
+        <div class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 id="department-title" class="text-2xl font-semibold text-white">Select a department</h2>
+            <p id="department-subtitle" class="mt-2 text-sm text-slate-400">Choose a department to submit your complaint and monitor its response.</p>
+          </div>
+          <div id="global-status" class="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">Online</div>
+        </div>
+
+        <div id="department-detail" class="hidden rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl"></div>
+
+        <div id="complaint-card" class="hidden rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
+          <div class="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <h3 class="text-xl font-semibold text-white">Submit complaint</h3>
+              <p class="mt-2 text-sm text-slate-400">Your message will reach both the chosen department and the admin team.</p>
+            </div>
+          </div>
+          <form id="complaint-form" class="grid gap-4">
+            <label class="grid gap-2 text-sm text-slate-300">
+              Issue category
+              <select id="complaint-category" required class="rounded-2xl border border-slate-700 bg-slate-950/90 p-4 text-slate-100 outline-none focus:border-sky-500">
+                <option value="General">General</option>
+                <option value="Light Issue">Light Issue</option>
+                <option value="Service Delay">Service Delay</option>
+                <option value="Staff Response">Staff Response</option>
+                <option value="Documentation">Documentation</option>
+                <option value="Billing">Billing</option>
+              </select>
+            </label>
+            <label class="grid gap-2 text-sm text-slate-300">
+              Direct a staff member
+              <select id="complaint-staff" class="rounded-2xl border border-slate-700 bg-slate-950/90 p-4 text-slate-100 outline-none focus:border-sky-500">
+                <option value="">Any available staff</option>
+              </select>
+            </label>
+            <label class="grid gap-2 text-sm text-slate-300">
+              Complaint details
+              <textarea id="complaint-text" rows="4" placeholder="Describe your experience" required class="min-h-[120px] rounded-2xl border border-slate-700 bg-slate-950/90 p-4 text-slate-100 outline-none focus:border-sky-500"></textarea>
+            </label>
+            <button type="submit" class="rounded-full bg-sky-600 px-6 py-3 text-sm font-semibold text-white hover:bg-sky-500">Send complaint</button>
+          </form>
+        </div>
+
+        <div id="response-card" class="hidden rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl"></div>
+
+        <div id="notification-panel" class="hidden rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
+          <div class="mb-4">
+            <h3 class="text-xl font-semibold text-white">Announcements</h3>
+          </div>
+          <div id="notification-list" class="grid gap-4"></div>
+        </div>
+      </section>
+
+      <aside class="space-y-6">
+        <section class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 class="text-xl font-semibold text-white">My complaints</h3>
+            <span class="text-sm text-slate-400">Track replies directly from staff and admin.</span>
+          </div>
+          <div id="customer-complaint-list" class="grid gap-4"></div>
+        </section>
+
+        <section class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 class="text-xl font-semibold text-white">Staff directory</h3>
+            <span class="text-sm text-slate-400">See who is available right now.</span>
+          </div>
+          <div id="staff-list" class="grid gap-4"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+</body>
+</html>

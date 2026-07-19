@@ -1,0 +1,83 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ServiceFlow | Login</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .auth-shell { display: grid; grid-template-columns: 1.1fr .9fr; min-height: 100vh; }
+    .auth-left { padding: 48px 40px; display: flex; flex-direction: column; justify-content: space-between; background: rgba(255,255,255,0.04); border-right: 1px solid rgba(255,255,255,0.08); }
+    .auth-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .auth-form { display: grid; gap: 18px; padding: 32px 0; }
+    .auth-form label { display: grid; gap: 10px; color: var(--muted); }
+    .auth-form input, .auth-form select { width: 100%; padding: 14px 16px; border-radius: 18px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text); }
+    .auth-note { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 36px; }
+    .auth-note a { color: var(--primary); }
+    @media (max-width: 768px) {
+      .auth-shell { grid-template-columns: 1fr; min-height: auto; }
+      .auth-left { padding: 32px 24px; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); }
+      .auth-header { margin-bottom: 20px; }
+      .auth-form { gap: 14px; padding: 20px 0; }
+      .auth-form input, .auth-form select { padding: 12px 14px; }
+    }
+    @media (max-width: 480px) {
+      .auth-left { padding: 24px 16px; }
+      .auth-header { flex-direction: column; align-items: stretch; gap: 12px; }
+      .auth-form { gap: 12px; padding: 16px 0; }
+      .auth-form input, .auth-form select { padding: 11px 12px; font-size: 16px; }
+    }
+  </style>
+  <script src="main.js" defer></script>
+  <script src="config.js" defer></script>
+  <script src="API/Auth.js" defer></script>
+  <script src="utils/authguard.js" defer></script>
+</head>
+<body class="page page-auth">
+  <div class="auth-shell">
+    <aside class="auth-panel auth-left">
+      <div>
+        <div class="brand-mark">SF</div>
+        <h1>Welcome back</h1>
+        <p>Login to access your customer, staff or admin dashboard with secure and modern access controls.</p>
+      </div>
+      <div class="auth-note">
+        <span>New here?</span>
+        <a href="signup.html">Create an account</a>
+      </div>
+    </aside>
+
+    <main class="auth-panel auth-right">
+      <div class="auth-header">
+        <a class="page-link" href="index.html">← Home</a>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme">Bright / Dark</button>
+      </div>
+      <form class="auth-form">
+        <span class="form-error" id="login-error"></span>
+        <h2>Sign in</h2>
+        <label>
+          Email address
+           <input type="email" placeholder="you@example.com" required name="email" id="email" />
+        </label>
+        <label>
+          Password
+          <div class="password-field">
+            <input type="password" name="password" id="login-password" placeholder="*******" required />
+            <button class="password-toggle" type="button" data-target="login-password">Show</button>
+          </div>
+        </label>
+        <label>
+          Role
+          <select name="role" required>
+            <option value="Customer">Customer</option>
+            <option value="Staff">Staff</option>
+            <option value="Admin">Admin</option>
+          </select>
+        </label>
+        <button class="button primary" type="submit">Login</button>
+      </form>
+    </main>
+  </div>
+  <script src="login.js" defer></script>
+</body>
+</html>

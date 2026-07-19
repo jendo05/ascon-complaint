@@ -1,0 +1,60 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ServiceFlow | Onboarding 3</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .onboarding-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 32px; align-items: center; min-height: calc(100vh - 120px); }
+    .onboard-copy h1 { max-width: 40rem; }
+    .onboard-card { padding: 32px; border-radius: 28px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.05); }
+    .step-pill { display: inline-flex; padding: 8px 14px; border-radius: 999px; background: rgba(56,189,248,0.12); color: #7dd3fc; margin-bottom: 18px; }
+    .list-tiles { display: grid; gap: 14px; margin-top: 24px; }
+    .tile { padding: 18px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); }
+    .page-actions { display: flex; gap: 14px; margin-top: 28px; flex-wrap: wrap; }
+    @media (max-width: 768px) {
+      .onboarding-grid { grid-template-columns: 1fr; gap: 24px; min-height: auto; }
+      .onboard-card { padding: 24px; }
+      .page-actions { gap: 12px; }
+    }
+    @media (max-width: 480px) {
+      .onboarding-grid { gap: 16px; }
+      .onboard-card { padding: 20px; }
+      .tile { padding: 14px; }
+      .page-actions { flex-direction: column; }
+    }
+  </style>
+  <script src="main.js" defer></script>
+</head>
+<body class="page page-onboarding">
+  <div class="page-shell">
+    <header class="page-header">
+      <a class="page-link" href="onboarding2.html">← Previous</a>
+      <button class="theme-toggle" type="button" aria-label="Toggle theme">Bright / Dark</button>
+    </header>
+
+    <main class="onboarding-grid">
+      <section class="onboard-copy">
+        <span class="eyebrow">Real-time interaction</span>
+        <h1>Stay informed with announcements and activity oversight.</h1>
+        <p>The admin can observe all active cases, issue announcements, and take over inactive departments.</p>
+      </section>
+      <section class="onboard-card">
+        <div class="step-pill">Step 3 of 3</div>
+        <h2>Complete experience</h2>
+        <p>All user roles get a modern dashboard with smooth navigation, hover interactions, and a polished visual interface.</p>
+        <div class="list-tiles">
+          <div class="tile"><strong>Customers</strong><span>File complaints and rate service.</span></div>
+          <div class="tile"><strong>Staff</strong><span>Manage assignments, reply, and update availability.</span></div>
+          <div class="tile"><strong>Admin</strong><span>Oversee every department and publish announcements.</span></div>
+        </div>
+        <div class="page-actions">
+          <a class="button secondary" href="login.html">Go to login</a>
+          <a class="button primary" href="signup.html">Create account</a>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
