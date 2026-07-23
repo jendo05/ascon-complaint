@@ -1,0 +1,5 @@
+
+.fullname-error { display: block; margin-top: 8px; font-size: 0.875rem; color: #f87171; }
+#email-error { display: block; margin-top: 8px; font-size: 0.875rem; color: #f87171; }
+.password-error { display: block; margin-top: 8px; font-size: 0.875rem; color: #f87171; }
+.confirm-password-error { display: block; margin-top: 8px; font-size: 0.875rem; color: #f87171; }

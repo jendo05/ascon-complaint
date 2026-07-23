@@ -44,7 +44,9 @@ body {
   color: var(--text);
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   transition: background 0.35s ease, color 0.35s ease;
-  overflow: scroll;
+  /* Use auto so the browser only shows a scrollbar when content requires it and enable touch scrolling */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 a {
   color: inherit;
@@ -79,6 +81,19 @@ button {
 }
 .password-toggle:hover {
   opacity: 0.8;
+}
+
+/* Responsive fixes: ensure images scale and reduce password field padding on small screens */
+img, .preview-card img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+@media (max-width: 480px) {
+  .password-field input {
+    padding-right: 48px;
+  }
 }
 .page-shell, .dashboard-shell, .auth-shell {
   width: min(1240px, calc(100% - 40px));

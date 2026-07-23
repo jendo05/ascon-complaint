@@ -1,0 +1,12 @@
+{
+  "name": "ascon-complaint",
+  "version": "0.1.0",
+  "description": "ASCON complaint portal - static client moved into public/",
+  "private": true,
+  "scripts": {
+    "start": "npx serve public",
+    "dev": "npx http-server public -p 8080"
+  },
+  "author": "",
+  "license": "MIT"
+}
