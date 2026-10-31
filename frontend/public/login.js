@@ -1,56 +1,51 @@
+'use strict';
+
 const loginForm = document.querySelector('.auth-form');
 const loginError = document.getElementById('login-error');
+const loginButton = loginForm?.querySelector('button[type="submit"]');
 
-function getRedirectTarget(defaultRole) {
+function getRedirectTarget(role) {
   const redirect = new URLSearchParams(window.location.search).get('redirect');
-  if (!redirect) {
-    return window.ServiceFlowAuth.getDashboardPage(defaultRole);
+  const allowedPages = ['customer_dashboard.html', 'staffs_dashboard.html', 'admin_dashboard.html'];
+  if (redirect && allowedPages.includes(redirect.split(/[\\/]/).pop())) {
+    const requested = redirect.split(/[\\/]/).pop();
+    const rolePage = window.ServiceFlowAuth.getDashboardPage(role);
+    return requested === rolePage ? requested : rolePage;
   }
-  const page = redirect.split(/[\\/]/).pop();
-  const allowedPages = ['customer_dashboard.html', 'staffs_dashboard.html', 'admin_dashboard.html', 'index.html'];
-  return allowedPages.includes(page) ? page : window.ServiceFlowAuth.getDashboardPage(defaultRole);
+  return window.ServiceFlowAuth.getDashboardPage(role);
 }
 
 document.querySelectorAll('.password-toggle').forEach((button) => {
   button.addEventListener('click', () => {
-    const targetId = button.getAttribute('data-target');
-    const input = document.getElementById(targetId);
+    const input = document.getElementById(button.dataset.target);
     if (!input) return;
-    const isPassword = input.type === 'password';
-    input.type = isPassword ? 'text' : 'password';
-    button.textContent = isPassword ? 'Hide' : 'Show';
+    input.type = input.type === 'password' ? 'text' : 'password';
+    button.textContent = input.type === 'password' ? 'Show' : 'Hide';
   });
 });
 
 loginForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (!loginError || !loginButton) return;
   loginError.textContent = '';
 
-  const formData = new FormData(loginForm);
-  const data = {
-    email: String(formData.get('email') || '').trim(),
-    password: String(formData.get('password') || ''),
-    role: String(formData.get('role') || '').trim(),
-  };
-
-  if (!data.email) {
-    loginError.textContent = 'Email is required.';
-    return;
-  }
-  if (!data.password) {
-    loginError.textContent = 'Password is required.';
-    return;
-  }
-  if (!data.role) {
-    loginError.textContent = 'Please select a role.';
+  const form = new FormData(loginForm);
+  const email = String(form.get('email') || '').trim();
+  const password = String(form.get('password') || '');
+  if (!email || !password) {
+    loginError.textContent = 'Enter your email address and password.';
     return;
   }
 
+  loginButton.disabled = true;
+  loginButton.textContent = 'Signing in…';
   try {
-    const result = await window.ServiceFlowAuth.login(data);
-    const redirectTarget = getRedirectTarget(result.user?.role || data.role);
-    window.location.href = redirectTarget;
+    const result = await window.ServiceFlowAuth.login({ email, password });
+    window.location.replace(getRedirectTarget(result.user.role));
   } catch (error) {
-    loginError.textContent = error.message || 'Login failed. Please try again.';
+    loginError.textContent = error.message || 'Sign-in failed. Please try again.';
+  } finally {
+    loginButton.disabled = false;
+    loginButton.textContent = 'Login';
   }
 });

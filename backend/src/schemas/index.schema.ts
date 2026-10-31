@@ -1,18 +1,32 @@
-import { z } from 'zod/v4'
+import { z } from 'zod';
 
 export const signUpSchema = z.object({
-  full_name: z.string().min(2).max(100),
-  email:     z.email(),
-  password:  z.string().min(8),
-})
+  full_name: z.string().trim().min(2).max(100),
+  email: z.string().trim().email().max(254),
+  password: z.string().min(8).max(128),
+});
 
 export const signInSchema = z.object({
-  email:    z.email(),
-  password: z.string().min(1),
-})
+  email: z.string().trim().email().max(254),
+  password: z.string().min(1).max(128),
+});
 
-export const updateProfileSchema = z.object({
-  full_name: z.string().min(2).max(100).optional(),
-  phone:     z.string().max(20).optional(),
-  location:  z.string().max(200).optional(),
-})
+export const complaintSchema = z.object({
+  department_id: z.string().uuid(),
+  title: z.string().trim().min(2).max(120),
+  description: z.string().trim().min(5).max(5000),
+  assigned_to: z.string().uuid().nullable().optional(),
+});
+
+export const statusSchema = z.object({
+  status: z.enum(['open', 'escalated', 'pending_user_confirmation', 'resolved']),
+});
+
+export const replySchema = z.object({
+  message: z.string().trim().min(1).max(4000),
+});
+
+export const announcementSchema = z.object({
+  title: z.string().trim().min(2).max(120),
+  message: z.string().trim().min(2).max(5000),
+});

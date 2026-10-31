@@ -32,7 +32,6 @@
   <script src="config.js" defer></script>
   <script src="API/Auth.js" defer></script>
   <script src="utils/authguard.js" defer></script>
-  <script src="shared/portal-state.js" defer></script>
   <script src="shared/dashboard-sync.js" defer></script>
 </head>
 <body class="page page-dashboard">
@@ -48,6 +47,7 @@
       <div class="header-actions">
         <button class="theme-toggle" type="button" aria-label="Toggle theme">Bright / Dark</button>
         <a class="button secondary" href="index.html">Home</a>
+        <button class="button secondary logout-button" type="button">Sign out</button>
       </div>
     </header>
 
@@ -75,7 +75,7 @@
         <div class="space-y-4">
           <div class="flex flex-col gap-3">
             <h3 class="text-xl font-semibold text-white">Department status</h3>
-            <p class="text-sm text-slate-400">Only departments with available staff appear here.</p>
+            <p class="text-sm text-slate-400">Live complaint and staff totals for every department.</p>
           </div>
           <div id="department-status-grid" class="grid gap-4"></div>
         </div>
@@ -144,19 +144,8 @@
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      if (window.DashboardSync) {
-        window.DashboardSync.initAdminDashboard();
-      }
-
-      document.querySelectorAll('.status-card button').forEach((button) => {
-        button.addEventListener('click', () => {
-          button.textContent = button.dataset.status === 'online' ? 'Taken' : 'Filled';
-          button.disabled = true;
-          button.closest('.status-card').classList.add('filled');
-        });
-      });
-    });
+    document.addEventListener('DOMContentLoaded', () => window.DashboardSync?.initAdminDashboard());
   </script>
+  <div id="admin-toast" class="staff-toast hidden"></div>
 </body>
 </html>

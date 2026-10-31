@@ -1,174 +1,166 @@
 (function () {
-  const STORAGE_KEYS = {
-    users: 'serviceflow-users',
-    currentUser: 'serviceflow-current-user',
-    authToken: 'serviceflow-auth-token',
-  };
+  'use strict';
 
-  const DEFAULT_API_BASE = '/api';
+  const TOKEN_KEY = 'serviceflow-access-token';
+  const USER_KEY = 'serviceflow-current-user';
+  const config = () => window.SERVICEFLOW_CONFIG || {};
+  const apiBaseUrl = () => String(config().apiBaseUrl || '/api/v1').replace(/\/$/, '');
 
-  function getConfig() {
-    return window.SERVICEFLOW_CONFIG || {};
-  }
-
-  function getApiBaseUrl() {
-    return getConfig().apiBaseUrl || DEFAULT_API_BASE;
-  }
-
-  function normalizeRole(role) {
-    return String(role || '').trim();
-  }
-
-  function getStoredUsers() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.users);
-      return raw ? JSON.parse(raw) : [];
-    } catch (error) {
-      console.warn('Unable to read stored users', error);
-      return [];
-    }
-  }
-
-  function saveStoredUsers(users) {
-    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
+  function getToken() {
+    return sessionStorage.getItem(TOKEN_KEY);
   }
 
   function getCurrentUser() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.currentUser);
+      const raw = sessionStorage.getItem(USER_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (error) {
-      console.warn('Unable to read current user', error);
+      console.warn('Could not read the current session.', error);
       return null;
     }
   }
 
-  function saveCurrentUser(user, token) {
-    localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify(user));
-    if (token) {
-      localStorage.setItem(STORAGE_KEYS.authToken, token);
-    }
+  function saveSession(user, token) {
+    if (!user || !token) throw new Error('The server did not return a valid session.');
+    sessionStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
   }
 
-  function clearCurrentUser() {
-    localStorage.removeItem(STORAGE_KEYS.currentUser);
-    localStorage.removeItem(STORAGE_KEYS.authToken);
-  }
-
-  function getDashboardPage(role) {
-    const normalizedRole = normalizeRole(role).toLowerCase();
-    if (normalizedRole === 'staff') return 'staffs_dashboard.html';
-    if (normalizedRole === 'admin') return 'admin_dashboard.html';
-    return 'customer_dashboard.html';
+  function clearSession() {
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(USER_KEY);
   }
 
   async function request(path, options = {}) {
-    const token = localStorage.getItem(STORAGE_KEYS.authToken);
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {}),
-      },
-      ...options,
-    });
+    const { token: explicitToken, ...fetchOptions } = options;
+    const token = explicitToken || getToken();
+    const headers = new Headers(fetchOptions.headers || {});
+    if (options.body !== undefined && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+
+    const timeoutMs = Number(config().requestTimeoutMs) || 15000;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+    let response;
+    try {
+      response = await fetch(`${apiBaseUrl()}${path}`, {
+        ...fetchOptions,
+        headers,
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new Error('The server took too long to respond. Please try again.');
+      }
+      if (error instanceof TypeError) {
+        throw new Error('Unable to reach the ServiceFlow. Check your connection.');
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
 
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(result.error || 'Request failed.');
+      if (response.status === 401 && path !== '/auth/signin' && path !== '/auth/signup') {
+        clearSession();
+      }
+      throw new Error(result.error || result.message || `Request failed (${response.status}).`);
     }
     return result;
   }
 
-  async function login(credentials) {
-    try {
-      const result = await request('/login', {
-        method: 'POST',
-        body: JSON.stringify(credentials),
-      });
-      if (result.user) {
-        saveCurrentUser(result.user, result.token || 'mock-token');
-        return result;
-      }
-      throw new Error('Login failed.');
-    } catch (error) {
-      if (error instanceof TypeError) {
-        return localLogin(credentials);
-      }
-      throw error;
-    }
+  function dashboardPage(role) {
+    const normalized = String(role || '').toLowerCase();
+    if (normalized === 'admin') return 'admin_dashboard.html';
+    if (normalized === 'dept_member' || normalized === 'staff') return 'staffs_dashboard.html';
+    return 'customer_dashboard.html';
   }
 
-  async function localLogin(credentials) {
-    const savedUsers = getStoredUsers();
-    const user = savedUsers.find((entry) => entry.email?.toLowerCase() === credentials.email?.toLowerCase());
-    if (!user) {
-      throw new Error('No account found for that email.');
-    }
-    if (user.password !== credentials.password) {
-      throw new Error('Invalid password.');
-    }
-    if (normalizeRole(user.role) !== normalizeRole(credentials.role)) {
-      throw new Error('Please select the correct role for this account.');
-    }
-    saveCurrentUser(user, 'mock-token');
-    return { user, token: 'mock-token' };
+  async function login(credentials) {
+    const result = await request('/auth/signin', {
+      method: 'POST',
+      body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+    });
+    const token = result.session?.access_token;
+    if (!token) throw new Error('The server did not return an access token.');
+    sessionStorage.setItem(TOKEN_KEY, token);
+    const profile = await request('/auth/me', { token });
+    saveSession(profile.user, token);
+    return { user: profile.user, token };
   }
 
   async function signup(payload) {
-    try {
-      const result = await request('/signup', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      if (result.user) {
-        saveCurrentUser(result.user, result.token || 'mock-token');
-        return result;
-      }
-      throw new Error('Signup failed.');
-    } catch (error) {
-      if (error instanceof TypeError) {
-        return localSignup(payload);
-      }
-      throw error;
-    }
+    const result = await request('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({
+        full_name: payload.full_name,
+        email: payload.email,
+        password: payload.password,
+      }),
+    });
+
+    const token = result.session?.access_token;
+    if (!token) return { requiresEmailConfirmation: true, message: result.message };
+
+    sessionStorage.setItem(TOKEN_KEY, token);
+    const profile = await request('/auth/me', { token });
+    saveSession(profile.user, token);
+    return { user: profile.user, token };
   }
 
-  async function localSignup(payload) {
-    const savedUsers = getStoredUsers();
-    const existingUser = savedUsers.find((entry) => entry.email?.toLowerCase() === payload.email?.toLowerCase());
-    if (existingUser) {
-      throw new Error('An account with that email already exists.');
-    }
-
-    const user = {
-      id: `user-${Date.now()}`,
-      username: payload.username,
-      email: payload.email,
-      role: normalizeRole(payload.role) || 'Customer',
-      password: payload.password,
-      createdAt: new Date().toISOString(),
-    };
-
-    savedUsers.push(user);
-    saveStoredUsers(savedUsers);
-    saveCurrentUser(user, 'mock-token');
-    return { user, token: 'mock-token' };
+  async function refreshCurrentUser() {
+    if (!getToken()) return null;
+    const result = await request('/auth/me');
+    sessionStorage.setItem(USER_KEY, JSON.stringify(result.user));
+    return result.user;
   }
 
   async function logout() {
-    clearCurrentUser();
+    clearSession();
     return true;
   }
 
   window.ServiceFlowAuth = {
     getCurrentUser,
-    saveCurrentUser,
-    clearCurrentUser,
+    getToken,
+    saveSession,
+    clearSession,
+    refreshCurrentUser,
     login,
     signup,
     logout,
-    getDashboardPage,
-    getApiBaseUrl,
+    getDashboardPage: dashboardPage,
+  };
+
+  window.ServiceFlowApi = {
+    getDepartments: async () => (await request('/departments')).data || [],
+    getStaff: async (departmentId) => {
+      const query = departmentId ? `?department_id=${encodeURIComponent(departmentId)}` : '';
+      return (await request(`/staff${query}`)).data || [];
+    },
+    getComplaints: async () => (await request('/complaints')).data || [],
+    createComplaint: async (payload) => (await request('/complaints', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })).data,
+    updateComplaintStatus: async (id, status) => (await request(`/complaints/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    })).data,
+    addReply: async (id, message) => (await request(`/complaints/${encodeURIComponent(id)}/replies`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    })).data,
+    getAnnouncements: async () => (await request('/announcements')).data || [],
+    createAnnouncement: async (payload) => (await request('/announcements', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })).data,
+    request,
   };
 })();

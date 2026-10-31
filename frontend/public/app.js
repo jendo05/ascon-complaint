@@ -1,448 +1,445 @@
-const state = {
-  selectedDepartment: null,
-  assignedStaffId: null,
-  notifications: [],
+'use strict';
+
+const customerState = {
+  departments: [],
+  staff: [],
   complaints: [],
-  ratings: [],
-  onlineStatus: {},
-  lastActivity: Date.now(),
+  announcements: [],
+  selectedDepartment: null,
+  assignedStaffId: '',
 };
 
-const departments = [
-  { id: 'economic', name: 'Economic & Financial Management Studies', description: 'Finance policies, budget queries, and reports.' },
-  { id: 'business', name: 'Business Management & Entrepreneurship Studies', description: 'Business planning, entrepreneurship, and advisory support.' },
-  { id: 'localgov', name: 'Local Government & Legislative Studies', description: 'Local governance, legislative support, and policy guidance.' },
-  { id: 'leadership', name: 'Leadership Development Studies', description: 'Leadership programs, training and performance coaching.' },
-  { id: 'computer', name: 'Computer & Information Management Studies', description: 'IT services, system support, and digital operations.' },
-  { id: 'public-admin', name: 'Public Administration Studies', description: 'Administration support, public affairs, and service delivery.' },
-  { id: 'management', name: 'Management Studies', description: 'Operational management, quality assurance, and monitoring.' },
-  { id: 'consultancy', name: 'Management Consultancy Services', description: 'Consultancy support, strategy and business advice.' },
-  { id: 'gender', name: 'Gender Studies', description: 'Gender policy, equity services and support.' },
-  { id: 'research', name: 'Research and Publications', description: 'Research coordination, publication services, and reports.' },
-  { id: 'planning', name: 'Planning & Strategy', description: 'Strategic planning, programme design, and evaluation.' },
-  { id: 'library', name: 'Library', description: 'Resource access, library support, and information services.' },
-  { id: 'procurement', name: 'Procurement', description: 'Purchase requests, supplier engagement, and purchase order support.' },
-  { id: 'finance', name: 'Finance and Accounts', description: 'Payments, invoicing, billing, and account reconciliation.' },
-  { id: 'hr', name: 'Human Resources', description: 'Staff services, benefits, recruitment, and performance review.' },
-  { id: 'general-services', name: 'General Services and Corporate Affairs Department', description: 'Facilities, event support, and general corporate services.' },
-  { id: 'special-duties', name: 'Special Duties, Internal Audit, and ICT', description: 'Director-General support, audit, and administrative oversight.' },
-];
+const api = window.ServiceFlowApi;
 
-const staff = [
-  { id: 's1', name: 'Peace A.', title: 'Head of Finance', departmentId: 'economic', online: true },
-  { id: 's2', name: 'Samuel B.', title: 'Procurement Specialist', departmentId: 'procurement', online: false },
-  { id: 's3', name: 'Rita C.', title: 'HR Advisor', departmentId: 'hr', online: true },
-  { id: 's4', name: 'David D.', title: 'ICT Support Lead', departmentId: 'special-duties', online: true },
-  { id: 's5', name: 'Grace E.', title: 'Research Coordinator', departmentId: 'research', online: false },
-  { id: 's6', name: 'Chinwe F.', title: 'Library Assistant', departmentId: 'library', online: true },
-  { id: 's7', name: 'Tunde G.', title: 'General Services Officer', departmentId: 'general-services', online: false },
-  { id: 's8', name: 'Aisha H.', title: 'Leadership Coach', departmentId: 'leadership', online: true },
-  { id: 's9', name: 'Olu J.', title: 'Public Admin Advisor', departmentId: 'public-admin', online: true },
-  { id: 's10', name: 'Musa K.', title: 'Operations Manager', departmentId: 'management', online: true },
-];
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character]);
+}
 
-const serviceBus = new EventTarget();
+function formatDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+}
 
-const DepartmentService = {
-  getAll: async () => departments,
-  getById: async (id) => departments.find((dept) => dept.id === id),
-};
+function statusLabel(status) {
+  return ({
+    open: 'Open',
+    escalated: 'Escalated',
+    pending_user_confirmation: 'Awaiting your confirmation',
+    resolved: 'Resolved',
+  })[status] || 'Unknown';
+}
 
-const StaffService = {
-  getByDepartment: async (departmentId) => staff.filter((item) => item.departmentId === departmentId),
-  getAll: async () => staff,
-  getById: async (id) => staff.find((item) => item.id === id),
-  setOnline: async (id, online) => {
-    const person = await StaffService.getById(id);
-    if (person) {
-      person.online = online;
-      serviceBus.dispatchEvent(new CustomEvent('staff-change', { detail: person }));
-    }
-  },
-  getStatus: async () => Object.fromEntries(staff.map((item) => [item.id, item.online])),
-};
+function showToast(message, isError = false) {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.toggle('toast-error', isError);
+  toast.classList.remove('hidden');
+  toast.classList.add('visible');
+  window.clearTimeout(showToast.timeoutId);
+  showToast.timeoutId = window.setTimeout(() => {
+    toast.classList.remove('visible');
+    toast.classList.add('hidden');
+  }, 4200);
+}
 
-const ComplaintService = {
-  submit: async ({ departmentId, category, message, staffId }) => {
-    const portal = PortalState.addComplaint({ departmentId, category, message, staffId, author: 'Customer' });
-    state.complaints = portal.complaints || [];
-    persistState();
-    const complaint = state.complaints.find((item) => item.departmentId === departmentId && item.message === message && item.category === category);
-    serviceBus.dispatchEvent(new CustomEvent('complaint-update', { detail: complaint }));
-    return complaint;
-  },
-  getByDepartment: async (departmentId) => (PortalState.getState().complaints || []).filter((item) => item.departmentId === departmentId),
-};
-
-const RatingService = {
-  submit: async ({ score, comment }) => {
-    const rating = { id: `rating-${Date.now()}`, score, comment, date: new Date().toLocaleDateString() };
-    state.ratings.push(rating);
-    persistState();
-    serviceBus.dispatchEvent(new CustomEvent('rating-update', { detail: rating }));
-    return rating;
-  },
-  getAverage: async () => {
-    if (!state.ratings.length) return 0;
-    return state.ratings.reduce((sum, item) => sum + item.score, 0) / state.ratings.length;
-  },
-  getCount: async () => state.ratings.length,
-};
-
-const NotificationService = {
-  announce: async (title, detail) => {
-    const portal = PortalState.addAnnouncement(title, detail);
-    state.notifications = portal.announcements || [];
-    persistState();
-    const notice = state.notifications[0] || { title, detail, createdAt: new Date().toLocaleTimeString() };
-    serviceBus.dispatchEvent(new CustomEvent('notification', { detail: notice }));
-    return notice;
-  },
-  getAll: async () => PortalState.getState().announcements || [],
-};
-
-function persistState() {
-  try {
-    localStorage.setItem('customerServiceState', JSON.stringify(state));
-  } catch (error) {
-    console.warn('Could not persist state', error);
+function setBusy(button, busy, label) {
+  if (!button) return;
+  button.disabled = busy;
+  if (busy) {
+    button.dataset.previousLabel = button.textContent;
+    button.textContent = label || 'Please wait…';
+  } else if (button.dataset.previousLabel) {
+    button.textContent = button.dataset.previousLabel;
+    delete button.dataset.previousLabel;
   }
 }
 
-function hydrateState() {
-  try {
-    const stored = localStorage.getItem('customerServiceState');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      state.ratings = parsed.ratings || [];
-    }
-    if (window.PortalState) {
-      const portal = PortalState.getState();
-      state.complaints = portal.complaints || [];
-      state.notifications = portal.announcements || [];
-    }
-  } catch (error) {
-    console.warn('Could not restore persisted state', error);
-  }
+function renderSummary() {
+  const openCount = customerState.complaints.filter((item) => item.status !== 'resolved').length;
+  const pendingCount = customerState.complaints.filter((item) => item.status === 'pending_user_confirmation').length;
+  const values = {
+    'summary-departments-count': customerState.departments.length,
+    'summary-open-count': openCount,
+    'summary-pending-count': pendingCount,
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = String(value);
+  });
+
+  const heading = document.querySelector('.dashboard-welcome');
+  const user = window.ServiceFlowAuth?.getCurrentUser();
+  if (heading && user?.username) heading.textContent = `Welcome back, ${user.username}.`;
 }
 
-function renderCustomerComplaints() {
-  const container = document.getElementById('customer-complaint-list');
+function renderDepartmentOptions() {
+  const select = document.getElementById('complaint-department');
+  if (!select) return;
+
+  const selectedId = customerState.selectedDepartment?.id || select.value;
+  const options = ['<option value="">Choose the department responsible for your issue</option>'];
+  customerState.departments.forEach((department) => {
+    options.push(`<option value="${escapeHtml(department.id)}">${escapeHtml(department.name)}</option>`);
+  });
+  select.innerHTML = options.join('');
+  select.value = customerState.departments.some((item) => item.id === selectedId) ? selectedId : '';
+  select.disabled = customerState.departments.length === 0;
+}
+
+function renderDepartments(message) {
+  const container = document.getElementById('departments-list');
   if (!container) return;
-  if (!state.complaints.length) {
-    container.innerHTML = '<p class="muted">No complaints submitted yet.</p>';
+
+  if (!customerState.departments.length) {
+    container.innerHTML = `<p class="text-sm text-slate-400">${escapeHtml(message || 'No departments are available yet. Please try again later.')}</p>`;
+    renderDepartmentOptions();
     return;
   }
 
-  container.innerHTML = state.complaints.map((complaint) => {
-    const department = departments.find((dept) => dept.id === complaint.departmentId);
+  container.innerHTML = customerState.departments.map((department) => `
+    <button type="button"
+      class="department-card text-left ${customerState.selectedDepartment?.id === department.id ? 'active' : ''}"
+      data-department-id="${escapeHtml(department.id)}"
+      aria-pressed="${customerState.selectedDepartment?.id === department.id}">
+      <span class="block font-semibold">${escapeHtml(department.name)}</span>
+      <span class="mt-2 block text-sm">${escapeHtml(department.description || 'Submit a complaint to this department.')}</span>
+      <span class="mt-3 inline-flex text-sm font-semibold text-sky-300">Choose department →</span>
+    </button>
+  `).join('');
+
+  container.querySelectorAll('[data-department-id]').forEach((button) => {
+    button.addEventListener('click', () => openDepartment(button.dataset.departmentId));
+  });
+  renderDepartmentOptions();
+}
+
+function renderStaff() {
+  const container = document.getElementById('staff-list');
+  const select = document.getElementById('complaint-staff');
+  if (!container) return;
+
+  if (!customerState.selectedDepartment) {
+    container.innerHTML = '<p class="text-sm text-slate-400">Choose a department to see its staff contacts. You can submit a complaint without selecting a staff member.</p>';
+    if (select) {
+      select.innerHTML = '<option value="">No specific staff member</option>';
+      select.value = '';
+      select.disabled = true;
+    }
+    return;
+  }
+
+  const departmentStaff = customerState.staff.filter(
+    (person) => person.department_id === customerState.selectedDepartment.id,
+  );
+
+  if (!departmentStaff.length) {
+    container.innerHTML = '<p class="text-sm text-slate-400">No staff contacts are listed for this department yet. You can still submit your complaint to the department.</p>';
+  } else {
+    container.innerHTML = departmentStaff.map((person) => {
+      const selected = customerState.assignedStaffId === person.id;
+      return `
+        <button type="button" class="staff-card clickable text-left ${selected ? 'selected' : ''}" data-staff-id="${escapeHtml(person.id)}" aria-pressed="${selected}">
+          <strong>${escapeHtml(person.username || 'Department staff')}</strong>
+          <div class="mt-1 text-sm">${escapeHtml(customerState.selectedDepartment.name)}</div>
+          <div class="meta-row"><span class="meta-chip">${selected ? 'Selected for this complaint' : 'Department contact'}</span></div>
+        </button>`;
+    }).join('');
+  }
+
+  container.querySelectorAll('[data-staff-id]').forEach((button) => {
+    button.addEventListener('click', () => {
+      customerState.assignedStaffId = customerState.assignedStaffId === button.dataset.staffId ? '' : button.dataset.staffId;
+      if (select) select.value = customerState.assignedStaffId;
+      renderStaff();
+    });
+  });
+
+  if (select) {
+    const currentValue = customerState.assignedStaffId;
+    select.innerHTML = [
+      '<option value="">No specific staff member</option>',
+      ...departmentStaff.map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.username || 'Department staff')}</option>`),
+    ].join('');
+    select.value = currentValue;
+    select.disabled = false;
+    if (currentValue && !departmentStaff.some((person) => person.id === currentValue)) {
+      customerState.assignedStaffId = '';
+      select.value = '';
+    }
+  }
+}
+
+function renderDepartmentDetail() {
+  const title = document.getElementById('department-title');
+  const subtitle = document.getElementById('department-subtitle');
+  const detail = document.getElementById('department-detail');
+  const responseCard = document.getElementById('response-card');
+  const status = document.getElementById('global-status');
+  const complaintDepartment = document.getElementById('complaint-department');
+  if (!customerState.selectedDepartment) return;
+
+  if (title) title.textContent = customerState.selectedDepartment.name;
+  if (subtitle) subtitle.textContent = customerState.selectedDepartment.description || 'Submit your complaint to this department.';
+  if (status) status.textContent = 'Department selected';
+  if (detail) {
+    detail.classList.remove('hidden');
+    const departmentComplaints = customerState.complaints.filter(
+      (item) => item.department_id === customerState.selectedDepartment.id,
+    );
+    detail.innerHTML = `
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div><h3 class="text-lg font-semibold">Department overview</h3><p class="mt-1 text-sm text-slate-400">Your complaint will be sent to this department.</p></div>
+        <span class="meta-chip">${departmentComplaints.length} of your request(s)</span>
+      </div>`;
+  }
+  if (responseCard) {
+    responseCard.classList.remove('hidden');
+    responseCard.innerHTML = `
+      <h3 class="text-lg font-semibold text-white">What happens next?</h3>
+      <p class="mt-2 text-sm text-slate-400">Your complaint is recorded against this department. Staff or administrators can reply and update its status. You can confirm a resolution from the complaint card when it is ready.</p>`;
+  }
+  if (complaintDepartment) complaintDepartment.value = customerState.selectedDepartment.id;
+  renderDepartments();
+  renderStaff();
+}
+
+function renderComplaints() {
+  const container = document.getElementById('customer-complaint-list');
+  if (!container) return;
+  if (!customerState.complaints.length) {
+    container.innerHTML = '<p class="muted">You have not submitted a complaint yet. Use the complaint form to send your first request.</p>';
+    return;
+  }
+
+  container.innerHTML = customerState.complaints.map((complaint) => {
+    const department = complaint.departments?.name || customerState.departments.find((item) => item.id === complaint.department_id)?.name || 'Department';
     const replies = (complaint.replies || []).map((reply) => `
       <div class="reply-item">
-        <strong>${reply.role} reply</strong>
-        <p>${reply.message}</p>
-        <small>${reply.createdAt}</small>
-      </div>
-    `).join('');
+        <strong>Response · ${escapeHtml(reply.sender?.username || 'Department staff')}</strong>
+        <p>${escapeHtml(reply.message)}</p>
+        <small>${escapeHtml(formatDate(reply.created_at))}</small>
+      </div>`).join('');
+    const confirmAction = complaint.status === 'pending_user_confirmation'
+      ? `<button type="button" class="button primary confirm-resolution" data-complaint-id="${escapeHtml(complaint.id)}">Confirm resolution</button>`
+      : '';
     return `
       <article class="complaint-item">
         <div class="complaint-header">
-          <strong>${department?.name || 'Unknown Department'}</strong>
-          <span class="meta-chip status-${complaint.status.toLowerCase()}">${complaint.status}</span>
+          <strong>${escapeHtml(department)} · ${escapeHtml(complaint.title)}</strong>
+          <span class="meta-chip status-${escapeHtml(complaint.status)}">${escapeHtml(statusLabel(complaint.status))}</span>
         </div>
-        <p>${complaint.category} — ${complaint.message}</p>
-        <div class="complaint-meta">Submitted: ${complaint.createdAt}</div>
-        ${replies ? `<div class="complaint-replies">${replies}</div>` : '<p class="muted">No reply yet.</p>'}
-      </article>
-    `;
-  }).join('');
-}
-
-function showToast(message) {
-  const toast = document.getElementById('toast');
-  toast.textContent = message;
-  toast.classList.remove('hidden');
-  setTimeout(() => toast.classList.add('hidden'), 3200);
-}
-
-async function renderDepartments() {
-  const container = document.getElementById('departments-list');
-  const list = await DepartmentService.getAll();
-  container.innerHTML = list.map((dept) => {
-    const active = state.selectedDepartment?.id === dept.id ? 'active' : '';
-    return `
-      <article class="department-card ${active}" data-id="${dept.id}">
-        <h3>${dept.name}</h3>
-        <p>${dept.description}</p>
+        <p>${escapeHtml(complaint.description)}</p>
+        <div class="complaint-meta">Submitted: ${escapeHtml(formatDate(complaint.created_at))}${complaint.assigned_staff?.username ? ` · Assigned to ${escapeHtml(complaint.assigned_staff.username)}` : ''}</div>
+        ${replies || '<p class="muted">No response yet.</p>'}
+        ${confirmAction}
       </article>`;
   }).join('');
-  container.querySelectorAll('.department-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      const departmentId = card.dataset.id;
-      openDepartment(departmentId);
+
+  container.querySelectorAll('.confirm-resolution').forEach((button) => {
+    button.addEventListener('click', async () => {
+      setBusy(button, true, 'Updating…');
+      try {
+        await api.updateComplaintStatus(button.dataset.complaintId, 'resolved');
+        await refreshData();
+        showToast('Resolution confirmed. Thank you.');
+      } catch (error) {
+        setBusy(button, false);
+        showToast(error.message, true);
+      }
     });
   });
 }
 
-async function renderStaffPanel() {
-  const list = state.selectedDepartment ? await StaffService.getByDepartment(state.selectedDepartment.id) : await StaffService.getAll();
-  const onlineStaff = list.filter((person) => person.online);
-  const container = document.getElementById('staff-list');
-  if (!onlineStaff.length) {
-    container.innerHTML = '<p class="text-sm text-slate-400">No staff are online right now. Online availability will appear here when team members sign in.</p>';
-  } else {
-    container.innerHTML = onlineStaff.map((person) => `
-      <article class="staff-card clickable ${state.assignedStaffId === person.id ? 'selected' : ''}" data-id="${person.id}">
-        <strong>${person.name}</strong>
-        <div>${person.title}</div>
-        <div class="meta-row">
-          <span class="meta-chip">${departments.find((dept) => dept.id === person.departmentId)?.name || 'Unknown'}</span>
-          <span class="staff-status-chip online">Online</span>
-        </div>
-      </article>`).join('');
-
-    container.querySelectorAll('.staff-card.clickable').forEach((card) => {
-      card.addEventListener('click', () => {
-        const staffId = card.dataset.id;
-        state.assignedStaffId = staffId;
-        document.getElementById('complaint-staff').value = staffId;
-        renderStaffPanel();
-        showToast('Complaint will be directed to selected staff member');
-      });
-    });
-  }
-  await renderStaffSelection();
-  updateGlobalStatus();
-}
-
-function updateGlobalStatus() {
-  const statusPill = document.getElementById('global-status');
-  if (!statusPill) return;
-  const onlineStaff = state.selectedDepartment ? staff.filter((person) => person.departmentId === state.selectedDepartment.id && person.online) : staff.filter((person) => person.online);
-  if (!onlineStaff.length) {
-    statusPill.textContent = 'No staff online';
-    statusPill.className = 'status-pill inline-flex rounded-full bg-slate-700 px-4 py-2 text-sm font-semibold text-slate-200';
-  } else {
-    statusPill.textContent = `${onlineStaff.length} staff online`;
-    statusPill.className = 'status-pill inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700';
-  }
-}
-
-async function renderStaffSelection() {
-  const select = document.getElementById('complaint-staff');
-  if (!select) return;
-  const list = state.selectedDepartment ? await StaffService.getByDepartment(state.selectedDepartment.id) : [];
-  const available = list.sort((a, b) => Number(b.online) - Number(a.online));
-  const options = ['<option value="">Any available staff</option>'];
-  available.forEach((person) => {
-    options.push(
-      `<option value="${person.id}">${person.name} ${person.online ? '(Online)' : '(Offline)'}</option>`
-    );
-  });
-  select.innerHTML = options.join('');
-  if (state.assignedStaffId) {
-    select.value = state.assignedStaffId;
-  }
-}
-
-async function renderRatingSummary() {
-  const ratingSummary = document.getElementById('rating-summary');
-  if (!ratingSummary) return;
-  const average = await RatingService.getAverage();
-  const count = await RatingService.getCount();
-  ratingSummary.innerHTML = `
-    <div>
-      <strong>${count ? average.toFixed(1) : '--'}</strong>
-      <p>${count ? `${count} reviews submitted` : 'No ratings yet'}</p>
-    </div>`;
-}
-
-async function renderNotifications() {
-  const list = await NotificationService.getAll();
+function renderAnnouncements() {
   const container = document.getElementById('notification-list');
-  const badge = document.getElementById('badge-notifications');
-  if (badge) {
-    badge.textContent = list.length;
-  }
   if (!container) return;
-  if (!list.length) {
-    container.innerHTML = '<p>No announcements yet. Admin announcements will appear here.</p>';
+  if (!customerState.announcements.length) {
+    container.innerHTML = '<p class="text-sm text-slate-400">There are no announcements at the moment.</p>';
     return;
   }
-  container.innerHTML = list.map((note) => `
+  container.innerHTML = customerState.announcements.map((note) => `
     <article class="notification-item">
-      <strong>${note.title}</strong>
-      <p>${note.message || note.detail}</p>
-      <small>${note.createdAt}</small>
-    </article>
-  `).join('');
+      <strong>${escapeHtml(note.title)}</strong>
+      <p>${escapeHtml(note.message)}</p>
+      <small>${escapeHtml(formatDate(note.created_at))}</small>
+    </article>`).join('');
 }
 
-function escapeHtml(text) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+async function refreshData() {
+  const [complaintsResult, announcementsResult] = await Promise.allSettled([
+    api.getComplaints(),
+    api.getAnnouncements(),
+  ]);
 
-async function openDepartment(id) {
-  const department = await DepartmentService.getById(id);
-  state.selectedDepartment = department;
-  state.assignedStaffId = null;
-  state.lastActivity = Date.now();
-  document.getElementById('department-title').textContent = department.name;
-  document.getElementById('department-subtitle').textContent = department.description;
-  document.getElementById('department-detail').classList.remove('hidden');
-  document.getElementById('complaint-card').classList.remove('hidden');
-  document.getElementById('response-card').classList.remove('hidden');
-  renderDepartmentDetail();
-  renderDepartments();
-  renderStaffPanel();
-}
-
-async function renderDepartmentDetail() {
-  if (!state.selectedDepartment) return;
-  const complaints = await ComplaintService.getByDepartment(state.selectedDepartment.id);
-  const card = document.getElementById('department-detail');
-  card.innerHTML = `
-    <div class="card-header">
-      <div>
-        <h3>${state.selectedDepartment.name}</h3>
-        <p>${state.selectedDepartment.description}</p>
-      </div>
-      <span class="meta-chip">${complaints.length} complaint${complaints.length === 1 ? '' : 's'}</span>
-    </div>
-    <div class="meta-row">
-      <span class="meta-chip">Current request sent to ICT and department</span>
-      <span class="meta-chip">Support status: ${state.selectedDepartment.id === 'computer' || state.selectedDepartment.id === 'special-duties' ? 'High priority' : 'Standard'}</span>
-    </div>
-    <div style="margin-top:18px;">
-      <strong>Recent department updates:</strong>
-      <ul style="margin: 12px 0 0 18px; color:#cbd5e1;">
-        ${complaints.slice(-3).map((item) => `<li>${item.category} - <em>${item.status}</em></li>`).join('') || '<li>No active complaint yet.</li>'}
-      </ul>
-    </div>`;
-}
-
-async function openNotifications() {
-  const notificationPanel = document.getElementById('notification-panel');
-  if (notificationPanel) notificationPanel.classList.toggle('hidden');
-  renderNotifications();
-}
-
-async function openRatingModal() {
-  const score = prompt('Rate your overall experience from 1 to 5 stars');
-  const numeric = Number(score);
-  if (!numeric || numeric < 1 || numeric > 5) {
-    showToast('Please provide a valid rating between 1 and 5');
-    return;
+  if (complaintsResult.status === 'fulfilled') {
+    customerState.complaints = complaintsResult.value;
+    renderComplaints();
+  } else {
+    const list = document.getElementById('customer-complaint-list');
+    if (list) list.innerHTML = '<p class="text-sm text-rose-300">Your complaints could not be loaded. Refresh the page to try again.</p>';
+    console.error('Unable to load customer complaints:', complaintsResult.reason);
   }
-  const comment = prompt('Share a short comment about your treatment experience');
-  await RatingService.submit({ score: numeric, comment: comment || 'No comment' });
-  await renderRatingSummary();
-  showToast('Thank you for your feedback!');
+
+  if (announcementsResult.status === 'fulfilled') {
+    customerState.announcements = announcementsResult.value;
+    renderAnnouncements();
+  } else {
+    const list = document.getElementById('notification-list');
+    if (list) list.innerHTML = '<p class="text-sm text-slate-400">Announcements are temporarily unavailable.</p>';
+    console.error('Unable to load announcements:', announcementsResult.reason);
+  }
+
+  renderSummary();
+  if (customerState.selectedDepartment) renderDepartmentDetail();
 }
 
-async function startSimulations() {
-  setInterval(() => {
-    const randomIndex = Math.floor(Math.random() * departments.length);
-    const department = departments[randomIndex];
-    const summary = `Reminder: ${department.name} is available for support today.`;
-    NotificationService.announce('Department bulletin', summary);
-  }, 32000);
+async function openDepartment(departmentId) {
+  const department = customerState.departments.find((item) => item.id === departmentId);
+  if (!department) return;
 
-  setInterval(() => {
-    const item = staff[Math.floor(Math.random() * staff.length)];
-    item.online = !item.online;
-    serviceBus.dispatchEvent(new CustomEvent('staff-change', { detail: item }));
-    renderStaffPanel();
-  }, 28000);
+  customerState.selectedDepartment = department;
+  customerState.assignedStaffId = '';
+  customerState.staff = [];
+  renderDepartmentDetail();
 
-  setInterval(() => {
-    if (!state.selectedDepartment) return;
-    const inactivity = Date.now() - state.lastActivity;
-    if (inactivity > 25000) {
-      NotificationService.announce('ICT Intervention', `ICT has reviewed ${state.selectedDepartment.name} and is intervening to support unresolved cases.`);
-    }
-  }, 22000);
+  const status = document.getElementById('global-status');
+  if (status) status.textContent = 'Loading department contacts…';
+
+  try {
+    customerState.staff = await api.getStaff(department.id);
+  } catch (error) {
+    // Staff lookup is optional; it must never block complaint submission.
+    customerState.staff = [];
+    console.error('Unable to load department staff:', error);
+    showToast('Staff contacts could not be loaded, but you can still submit your complaint.', true);
+  }
+
+  if (status) status.textContent = 'Ready to receive your complaint';
+  renderStaff();
 }
 
 function wireEvents() {
-  document.getElementById('complaint-form').addEventListener('submit', async (event) => {
+  const departmentSelect = document.getElementById('complaint-department');
+  departmentSelect?.addEventListener('change', () => {
+    if (departmentSelect.value) {
+      openDepartment(departmentSelect.value);
+    } else {
+      customerState.selectedDepartment = null;
+      customerState.staff = [];
+      customerState.assignedStaffId = '';
+      const title = document.getElementById('department-title');
+      const subtitle = document.getElementById('department-subtitle');
+      const detail = document.getElementById('department-detail');
+      const responseCard = document.getElementById('response-card');
+      const status = document.getElementById('global-status');
+      if (title) title.textContent = 'Select a department';
+      if (subtitle) subtitle.textContent = 'Choose a department to submit your complaint and monitor its response.';
+      detail?.classList.add('hidden');
+      responseCard?.classList.add('hidden');
+      if (status) status.textContent = 'Online';
+      renderDepartments();
+      renderStaff();
+    }
+  });
+
+  const staffSelect = document.getElementById('complaint-staff');
+  staffSelect?.addEventListener('change', () => {
+    customerState.assignedStaffId = staffSelect.value;
+    renderStaff();
+  });
+
+  const form = document.getElementById('complaint-form');
+  form?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!state.selectedDepartment) {
-      showToast('Please select a department first.');
+    const departmentId = departmentSelect?.value || customerState.selectedDepartment?.id;
+    const department = customerState.departments.find((item) => item.id === departmentId);
+    if (!department) {
+      showToast('Please choose a department before submitting your complaint.', true);
+      departmentSelect?.focus();
       return;
     }
+
+    customerState.selectedDepartment = department;
+    const button = form.querySelector('button[type="submit"]');
     const category = document.getElementById('complaint-category').value;
-    const message = document.getElementById('complaint-text').value.trim();
-    const staffId = document.getElementById('complaint-staff').value || null;
-    if (!message) {
-      showToast('Please describe your issue.');
+    const description = document.getElementById('complaint-text').value.trim();
+    const assignedTo = staffSelect?.value || null;
+    if (!description) {
+      showToast('Please describe your issue.', true);
+      document.getElementById('complaint-text')?.focus();
       return;
     }
-    const complaint = await ComplaintService.submit({ departmentId: state.selectedDepartment.id, category, message, staffId });
-    const receiver = staffId ? await StaffService.getById(staffId) : null;
-    showToast(`Complaint submitted successfully${receiver ? ` to ${receiver.name}` : ''}.`);
-    document.getElementById('complaint-text').value = '';
-    state.assignedStaffId = null;
-    await renderStaffPanel();
-    renderDepartmentDetail();
-    renderCustomerComplaints();
-    renderCustomerSummary();
+
+    setBusy(button, true, 'Submitting…');
+    try {
+      await api.createComplaint({
+        department_id: department.id,
+        title: category,
+        description,
+        assigned_to: assignedTo,
+      });
+      form.reset();
+      customerState.assignedStaffId = '';
+      customerState.selectedDepartment = department;
+      renderDepartmentOptions();
+      await refreshData();
+      renderStaff();
+      showToast('Your complaint has been submitted successfully.');
+    } catch (error) {
+      showToast(error.message || 'Unable to submit your complaint. Please try again.', true);
+    } finally {
+      setBusy(button, false);
+    }
   });
 
-  const btnNotifications = document.getElementById('btn-notifications');
-  const btnShowRating = document.getElementById('btn-show-rating');
-
-  if (btnNotifications) {
-    btnNotifications.addEventListener('click', openNotifications);
-  }
-
-  if (btnShowRating) {
-    btnShowRating.addEventListener('click', openRatingModal);
-  }
-
-  serviceBus.addEventListener('notification', () => {
-    renderNotifications();
-  });
-  serviceBus.addEventListener('staff-change', () => {
-    renderStaffPanel();
-  });
-}
-
-function renderCustomerSummary() {
-  const openCountEl = document.getElementById('summary-open-count');
-  const departmentCountEl = document.getElementById('summary-departments-count');
-  const pendingCountEl = document.getElementById('summary-pending-count');
-  const portal = window.PortalState ? PortalState.getState() : { complaints: [] };
-  const openCount = (portal.complaints || []).filter((item) => item.status !== 'Closed').length;
-  const pendingCount = (portal.complaints || []).filter((item) => item.status === 'Pending').length;
-  if (openCountEl) openCountEl.textContent = String(openCount);
-  if (departmentCountEl) departmentCountEl.textContent = String(departments.length);
-  if (pendingCountEl) pendingCountEl.textContent = String(pendingCount);
-}
-
-async function init() {
-  hydrateState();
-  await renderDepartments();
-  await renderStaffPanel();
-  await renderRatingSummary();
-  await renderNotifications();
-  renderCustomerComplaints();
-  renderCustomerSummary();
-  wireEvents();
-  if (window.PortalState) {
-    window.addEventListener('storage', (event) => {
-      if (event.key === PortalState.STORAGE_KEY) {
-        const portal = PortalState.getState();
-        state.complaints = portal.complaints || [];
-        state.notifications = portal.announcements || [];
-        renderCustomerComplaints();
-        renderNotifications();
-        renderCustomerSummary();
-        if (state.selectedDepartment) renderDepartmentDetail();
-      }
+  document.querySelectorAll('.logout-button').forEach((button) => {
+    button.addEventListener('click', async () => {
+      setBusy(button, true, 'Signing out…');
+      try { await window.ServiceFlowAuth.logout(); } catch (_error) { /* Local session is still cleared. */ }
+      window.location.replace('login.html');
     });
-  }
-  await startSimulations();
-  showToast('Customer Service dashboard ready');
+  });
 }
 
-init();
+async function initCustomerDashboard() {
+  const allowed = await window.ServiceFlowAuthReady;
+  if (!allowed) return;
+
+  wireEvents();
+  renderDepartmentOptions();
+  renderStaff();
+
+  const status = document.getElementById('global-status');
+  if (status) status.textContent = 'Loading departments…';
+
+  try {
+    // Load departments independently. Staff lookup is deferred until a department is selected
+    // so an optional directory failure cannot blank the dashboard or hide the complaint form.
+    customerState.departments = await api.getDepartments();
+    renderDepartments();
+    renderSummary();
+    if (status) status.textContent = customerState.departments.length ? 'Online' : 'No departments available';
+  } catch (error) {
+    renderDepartments('Departments could not be loaded. Check your connection and refresh the page.');
+    if (status) status.textContent = 'Departments unavailable';
+    showToast(error.message || 'Unable to load departments.', true);
+    console.error('Unable to load departments:', error);
+  }
+
+  await refreshData();
+  window.setInterval(() => refreshData().catch((error) => console.error('Dashboard refresh failed:', error)), 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      refreshData().catch((error) => console.error('Dashboard refresh failed:', error));
+    }
+  });
+}
+
+initCustomerDashboard().catch((error) => {
+  console.error('Customer dashboard initialization failed:', error);
+  showToast('The dashboard could not finish loading. Refresh the page to try again.', true);
+});

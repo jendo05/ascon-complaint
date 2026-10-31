@@ -1,98 +1,78 @@
+'use strict';
+
 const signupForm = document.querySelector('.auth-form');
 const formError = document.getElementById('form-error');
-const fullnameError = document.getElementById('fullname-error');
-const emailError = document.getElementById('email-error');
-const passwordError = document.getElementById('password-error');
-const confirmPasswordError = document.getElementById('confirm-password-error');
-
-const nameOfUser = document.getElementById('username');
-const emailOfUser = document.getElementById('email');
-const roleOfUser = document.getElementById('role');
-const passwordOfUser = document.getElementById('password');
-const confirmPasswordOfUser = document.getElementById('confirm-password');
-
-document.querySelectorAll('.password-toggle').forEach((button) => {
-  button.addEventListener('click', () => {
-    const targetId = button.getAttribute('data-target');
-    const input = document.getElementById(targetId);
-    if (!input) return;
-    const isPassword = input.type === 'password';
-    input.type = isPassword ? 'text' : 'password';
-    button.textContent = isPassword ? 'Hide' : 'Show';
-  });
-});
+const nameInput = document.getElementById('username');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const confirmPasswordInput = document.getElementById('confirm-password');
+const signupButton = signupForm?.querySelector('button[type="submit"]');
 
 function validateName(value) {
-  if (!value.trim()) return 'Fullname is required';
-  if (value.trim().length < 3) return 'Fullname must be at least 3 characters';
-  return '';
-}
-
-function validateEmail(value) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!value.trim()) return 'Please enter your email address';
-  if (!emailRegex.test(value)) return 'Please enter a valid email address';
+  const name = value.trim();
+  if (!name) return 'Full name is required.';
+  if (name.length < 2) return 'Enter at least 2 characters.';
   return '';
 }
 
 function validatePassword(value) {
-  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
-  if (!passwordRegex.test(value)) return 'Password must contain at least one letter and one number';
+  if (value.length < 8) return 'Password must be at least 8 characters.';
   return '';
 }
 
-function validateConfirmPassword(value) {
-  if (value !== passwordOfUser.value) return 'Passwords do not match';
-  return '';
+function setFieldError(id, message) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = message;
 }
 
-nameOfUser?.addEventListener('blur', () => {
-  fullnameError.textContent = validateName(nameOfUser.value);
+document.querySelectorAll('.password-toggle').forEach((button) => {
+  button.addEventListener('click', () => {
+    const input = document.getElementById(button.dataset.target);
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+    button.textContent = input.type === 'password' ? 'Show' : 'Hide';
+  });
 });
 
-emailOfUser?.addEventListener('blur', () => {
-  emailError.textContent = validateEmail(emailOfUser.value);
-});
-
-passwordOfUser?.addEventListener('blur', () => {
-  passwordError.textContent = validatePassword(passwordOfUser.value);
-  confirmPasswordError.textContent = validateConfirmPassword(confirmPasswordOfUser.value);
-});
-
-confirmPasswordOfUser?.addEventListener('blur', () => {
-  confirmPasswordError.textContent = validateConfirmPassword(confirmPasswordOfUser.value);
+nameInput?.addEventListener('blur', () => setFieldError('fullname-error', validateName(nameInput.value)));
+passwordInput?.addEventListener('blur', () => setFieldError('password-error', validatePassword(passwordInput.value)));
+confirmPasswordInput?.addEventListener('blur', () => {
+  setFieldError('confirm-password-error', confirmPasswordInput.value === passwordInput?.value ? '' : 'Passwords do not match.');
 });
 
 signupForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (!formError || !signupButton) return;
   formError.textContent = '';
 
-  const fullnameErrorMessage = validateName(nameOfUser?.value || '');
-  const emailErrorMessage = validateEmail(emailOfUser?.value || '');
-  const passwordErrorMessage = validatePassword(passwordOfUser?.value || '');
-  const confirmPasswordErrorMessage = validateConfirmPassword(confirmPasswordOfUser?.value || '');
+  const nameError = validateName(nameInput?.value || '');
+  const passwordError = validatePassword(passwordInput?.value || '');
+  const confirmError = confirmPasswordInput?.value === passwordInput?.value ? '' : 'Passwords do not match.';
+  setFieldError('fullname-error', nameError);
+  setFieldError('password-error', passwordError);
+  setFieldError('confirm-password-error', confirmError);
+  setFieldError('email-error', emailInput?.validity.valid ? '' : 'Enter a valid email address.');
 
-  fullnameError.textContent = fullnameErrorMessage;
-  emailError.textContent = emailErrorMessage;
-  passwordError.textContent = passwordErrorMessage;
-  confirmPasswordError.textContent = confirmPasswordErrorMessage;
+  if (nameError || passwordError || confirmError || !emailInput?.validity.valid) return;
 
-  if (fullnameErrorMessage || emailErrorMessage || passwordErrorMessage || confirmPasswordErrorMessage) {
-    return;
-  }
-
-  const formData = new FormData(signupForm);
-  const payload = {
-    username: String(formData.get('username') || '').trim(),
-    email: String(formData.get('email') || '').trim(),
-    role: String(formData.get('role') || 'Customer').trim(),
-    password: String(formData.get('password') || ''),
-  };
-
+  signupButton.disabled = true;
+  signupButton.textContent = 'Creating account…';
   try {
-    await window.ServiceFlowAuth.signup(payload);
-    window.location.href = window.ServiceFlowAuth.getDashboardPage(payload.role);
+    const result = await window.ServiceFlowAuth.signup({
+      full_name: nameInput.value.trim(),
+      email: emailInput.value.trim(),
+      password: passwordInput.value,
+    });
+    if (result.requiresEmailConfirmation) {
+      formError.textContent = result.message || 'Account created. Check your email to confirm the address, then sign in.';
+      signupForm.reset();
+      return;
+    }
+    window.location.replace(window.ServiceFlowAuth.getDashboardPage(result.user.role));
   } catch (error) {
-    formError.textContent = error.message || 'Signup failed. Please try again.';
+    formError.textContent = error.message || 'Account creation failed. Please try again.';
+  } finally {
+    signupButton.disabled = false;
+    signupButton.textContent = 'Sign up';
   }
 });

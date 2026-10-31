@@ -1,54 +1,38 @@
 (function () {
-  function getCurrentUser() {
-    return window.ServiceFlowAuth?.getCurrentUser?.() || null;
+  'use strict';
+
+  function expectedRole(path) {
+    if (path.includes('customer_dashboard')) return ['customer'];
+    if (path.includes('staffs_dashboard')) return ['dept_member'];
+    if (path.includes('admin_dashboard')) return ['admin'];
+    return [];
   }
 
-  function getDashboardPage(role) {
-    return window.ServiceFlowAuth?.getDashboardPage?.(role) || 'customer_dashboard.html';
-  }
+  const path = window.location.pathname.split('/').pop() || '';
+  const roles = expectedRole(path);
 
-  function isTestMode() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('test') === 'true' || params.get('debug') === 'true';
-  }
+  window.ServiceFlowAuthReady = (async () => {
+    if (!roles.length) return true;
 
-  function ensureAuthenticated(allowedRoles = []) {
-    if (isTestMode()) {
-      return true;
-    }
-
-    const user = getCurrentUser();
-    if (!user) {
-      const currentPage = window.location.pathname.split('/').pop() || window.location.pathname;
-      const redirect = encodeURIComponent(currentPage);
+    if (!window.ServiceFlowAuth?.getToken()) {
+      const redirect = encodeURIComponent(path || 'index.html');
       window.location.replace(`login.html?redirect=${redirect}`);
       return false;
     }
 
-    if (allowedRoles.length) {
-      const role = String(user.role || '').toLowerCase();
-      const allowed = allowedRoles.map((entry) => String(entry).toLowerCase());
-      if (!allowed.includes(role)) {
-        window.location.replace(getDashboardPage(user.role));
+    try {
+      const user = await window.ServiceFlowAuth.refreshCurrentUser();
+      if (!user) throw new Error('No active user session.');
+      if (!roles.includes(String(user.role || '').toLowerCase())) {
+        window.location.replace(window.ServiceFlowAuth.getDashboardPage(user.role));
         return false;
       }
+      return true;
+    } catch (_error) {
+      window.ServiceFlowAuth.clearSession();
+      const redirect = encodeURIComponent(path || 'index.html');
+      window.location.replace(`login.html?redirect=${redirect}`);
+      return false;
     }
-
-    return true;
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    if (isTestMode()) {
-      return;
-    }
-
-    const path = window.location.pathname.split('/').pop() || '';
-    if (path.includes('customer_dashboard')) {
-      ensureAuthenticated(['customer']);
-    } else if (path.includes('staffs_dashboard')) {
-      ensureAuthenticated(['staff']);
-    } else if (path.includes('admin_dashboard')) {
-      ensureAuthenticated(['admin']);
-    }
-  });
+  })();
 })();

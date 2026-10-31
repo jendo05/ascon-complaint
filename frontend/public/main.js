@@ -1,37 +1,39 @@
-﻿const themeToggleButtons = document.querySelectorAll(
-  ".theme-toggle"
-);
-const storedTheme = localStorage.getItem("serviceflow-theme") || "dark";
-const htmlElement = document.documentElement;
+﻿'use strict';
 
-function setTheme(theme) {
-  htmlElement.classList.toggle("dark", theme === "dark");
-  localStorage.setItem("serviceflow-theme", theme);
-}
+(function () {
+  const root = document.documentElement;
+  const themeKey = 'serviceflow-theme';
 
-function toggleTheme() {
-  const next = htmlElement.classList.contains("dark") ? "light" : "dark";
-  setTheme(next);
-}
-
-if (themeToggleButtons.length) {
-  themeToggleButtons.forEach((button) => {
-    button.addEventListener("click", toggleTheme);
-  });
-}
-
-if (!htmlElement.classList.contains("dark") && !htmlElement.classList.contains("light")) {
-  setTheme(storedTheme);
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  const loader = document.querySelector(".loader-screen");
-  const landing = document.querySelector(".landing-shell");
-  if (loader && landing) {
-    setTimeout(() => {
-      loader.classList.add("opacity-0", "invisible", "pointer-events-none");
-      landing.classList.remove("hidden");
-      loader.classList.add("hidden");
-    }, 1000);
+  function readTheme() {
+    try {
+      return localStorage.getItem(themeKey) || 'dark';
+    } catch (_error) {
+      return 'dark';
+    }
   }
-});
+
+  function setTheme(theme) {
+    root.dataset.theme = theme;
+    try { localStorage.setItem(themeKey, theme); } catch (_error) { /* Theme still works for this page. */ }
+    document.querySelectorAll('.theme-toggle').forEach((button) => {
+      button.setAttribute('aria-pressed', String(theme === 'light'));
+      button.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
+    });
+  }
+
+  setTheme(readTheme());
+
+  const loader = document.querySelector('.loader-screen');
+  const landing = document.querySelector('.landing-shell');
+  if (loader && landing) {
+    landing.classList.remove('hidden');
+    window.requestAnimationFrame(() => loader.classList.add('fade-out'));
+    window.setTimeout(() => loader.classList.add('hidden'), 420);
+  }
+
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('.theme-toggle');
+    if (!button) return;
+    setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark');
+  });
+})();
