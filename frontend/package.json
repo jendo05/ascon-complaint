@@ -4,8 +4,8 @@
   "description": "ASCON complaint portal - static client moved into public/",
   "private": true,
   "scripts": {
-    "start": "npx serve public",
-    "dev": "npx http-server public -p 8080"
+    "start": "npx serve public -l 8080",
+    "dev": "npx http-server public -p 8080 -c-1"
   },
   "author": "",
   "license": "MIT"

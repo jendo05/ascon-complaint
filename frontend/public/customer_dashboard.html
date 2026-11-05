@@ -17,7 +17,6 @@
   <script src="config.js" defer></script>
   <script src="API/Auth.js" defer></script>
   <script src="utils/authguard.js" defer></script>
-  <script src="shared/portal-state.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
@@ -25,11 +24,12 @@
     <header class="mb-8 flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
       <div class="space-y-3">
         <p class="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Customer Dashboard</p>
-        <h1 class="text-4xl font-semibold text-white">Welcome back, valued customer.</h1>
+        <h1 class="dashboard-welcome text-4xl font-semibold text-white">Welcome back.</h1>
       </div>
       <div class="flex flex-wrap items-center gap-3">
-        <button class="rounded-full border border-slate-700 bg-slate-900/80 px-5 py-3 text-sm text-slate-100 transition hover:bg-slate-800" type="button" aria-label="Toggle theme">Bright / Dark</button>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme">Bright / Dark</button>
         <a class="rounded-full bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500" href="index.html">Home</a>
+        <button class="button secondary logout-button" type="button">Sign out</button>
       </div>
     </header>
 
@@ -39,7 +39,7 @@
           <h3 class="text-xl font-semibold text-white">Quick overview</h3>
           <div class="mt-6 grid gap-4 sm:grid-cols-2">
             <div class="rounded-3xl bg-slate-950/90 p-5">
-              <strong id="summary-departments-count" class="block text-3xl font-semibold text-white">16</strong>
+              <strong id="summary-departments-count" class="block text-3xl font-semibold text-white">—</strong>
               <span class="text-sm text-slate-400">Departments</span>
             </div>
             <div class="rounded-3xl bg-slate-950/90 p-5">
@@ -55,7 +55,7 @@
 
         <section class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
           <h2 class="text-xl font-semibold text-white">Departments</h2>
-          <div id="departments-list" class="mt-6 grid gap-4"></div>
+          <div id="departments-list" class="mt-6 grid gap-4"><p class="text-sm text-slate-400">Loading departments…</p></div>
         </section>
       </aside>
 
@@ -64,20 +64,28 @@
           <div>
             <h2 id="department-title" class="text-2xl font-semibold text-white">Select a department</h2>
             <p id="department-subtitle" class="mt-2 text-sm text-slate-400">Choose a department to submit your complaint and monitor its response.</p>
+            <a href="#complaint-card" class="mt-4 inline-flex text-sm font-semibold text-sky-300 hover:text-sky-200">Write a complaint ↓</a>
           </div>
-          <div id="global-status" class="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">Online</div>
+          <div id="global-status" class="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">Loading…</div>
         </div>
 
         <div id="department-detail" class="hidden rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl"></div>
 
-        <div id="complaint-card" class="hidden rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
+        <div id="complaint-card" class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
           <div class="mb-5 flex items-start justify-between gap-4">
             <div>
               <h3 class="text-xl font-semibold text-white">Submit complaint</h3>
-              <p class="mt-2 text-sm text-slate-400">Your message will reach both the chosen department and the admin team.</p>
+              <p class="mt-2 text-sm text-slate-400">Your message will be recorded for the selected department and visible to the appropriate staff.</p>
             </div>
           </div>
           <form id="complaint-form" class="grid gap-4">
+            <label class="grid gap-2 text-sm text-slate-300">
+              Department
+              <select id="complaint-department" required class="rounded-2xl border border-slate-700 bg-slate-950/90 p-4 text-slate-100 outline-none focus:border-sky-500">
+                <option value="">Loading departments…</option>
+              </select>
+              <span class="text-xs text-slate-400">Choose the department responsible for handling your issue.</span>
+            </label>
             <label class="grid gap-2 text-sm text-slate-300">
               Issue category
               <select id="complaint-category" required class="rounded-2xl border border-slate-700 bg-slate-950/90 p-4 text-slate-100 outline-none focus:border-sky-500">
@@ -92,7 +100,7 @@
             <label class="grid gap-2 text-sm text-slate-300">
               Direct a staff member
               <select id="complaint-staff" class="rounded-2xl border border-slate-700 bg-slate-950/90 p-4 text-slate-100 outline-none focus:border-sky-500">
-                <option value="">Any available staff</option>
+                <option value="">No specific staff member</option>
               </select>
             </label>
             <label class="grid gap-2 text-sm text-slate-300">
@@ -105,7 +113,7 @@
 
         <div id="response-card" class="hidden rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl"></div>
 
-        <div id="notification-panel" class="hidden rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
+        <div id="notification-panel" class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
           <div class="mb-4">
             <h3 class="text-xl font-semibold text-white">Announcements</h3>
           </div>
@@ -125,7 +133,7 @@
         <section class="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 shadow-xl">
           <div class="mb-4 flex items-center justify-between gap-3">
             <h3 class="text-xl font-semibold text-white">Staff directory</h3>
-            <span class="text-sm text-slate-400">See who is available right now.</span>
+            <span class="text-sm text-slate-400">Contact staff assigned to a department.</span>
           </div>
           <div id="staff-list" class="grid gap-4"></div>
         </section>
