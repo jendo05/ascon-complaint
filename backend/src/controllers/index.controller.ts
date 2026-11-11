@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { z } from 'zod';
+import { number, z } from 'zod';
 import type { AuthenticatedRequest } from '../types/index.type.js';
 import { HttpError } from '../middleware/index.middleware.js';
 import {

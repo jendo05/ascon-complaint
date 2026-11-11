@@ -33,13 +33,13 @@ const authLimiter = rateLimit({
   message: { error: 'Too many authentication attempts. Please try again later.' },
 });
 
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/health', (_, res) => res.json({ status: 'ok' }));
 app.use('/api/v1/auth', authLimiter);
 app.use('/api/v1', routes);
 
-app.use((_req, res) => res.status(404).json({ error: 'Route not found.' }));
+app.use((_, res) => res.status(404).json({ error: 'Route not found.' }));
 
-app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((error: unknown, _: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (error instanceof ZodError) {
     res.status(400).json({ error: error.issues.map((issue) => issue.message).join('; ') });
     return;

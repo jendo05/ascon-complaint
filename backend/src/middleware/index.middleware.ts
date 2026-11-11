@@ -14,7 +14,7 @@ export class HttpError extends Error {
 
 export const requireAuth = async (
   req: AuthenticatedRequest,
-  _res: Response,
+  _: Response,
   next: NextFunction,
 ) => {
   try {
@@ -56,7 +56,7 @@ export const requireAuth = async (
 };
 
 export const requireRole = (...roles: UserRole[]) =>
-  (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
+  (req: AuthenticatedRequest, _: Response, next: NextFunction) => {
     if (!req.auth || !roles.includes(req.auth.role)) {
       next(new HttpError(403, 'You do not have permission to perform this action.'));
       return;

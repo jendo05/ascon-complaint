@@ -12,10 +12,10 @@ export const signInSchema = z.object({
 });
 
 export const complaintSchema = z.object({
-  department_id: z.string().uuid(),
+  department_id: z.uuid(),
   title: z.string().trim().min(2).max(120),
   description: z.string().trim().min(5).max(5000),
-  assigned_to: z.string().uuid().nullable().optional(),
+  assigned_to: z.uuid().nullable().optional(),
 });
 
 export const statusSchema = z.object({
